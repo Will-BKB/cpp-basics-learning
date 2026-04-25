@@ -6,6 +6,7 @@
 *.lo
 *.o
 *.obj
+*.s
 
 # Precompiled Headers
 *.gch
@@ -38,6 +39,11 @@
 *.exe
 *.out
 *.app
+# 无扩展名的可执行文件
+01_stack_vs_heap
+02_memory_observer
+# 其他可执行文件
+*_[0-9][0-9]
 
 # Build directories
 build/
@@ -67,3 +73,14 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# Claude Code
+.claude/
+
+# macOS debug information
+*.dSYM/
+*.dSYM/Contents/Resources/DWARF/
+
+# 其他编译产物
+*.bc
+*.ll

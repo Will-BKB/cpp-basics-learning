@@ -77,25 +77,118 @@
 
 | 优先级 | 知识点 | 核心问题 | 验证手段 |
 |--------|--------|----------|----------|
-| ⭐⭐⭐ | 调用约定（x86-64） | 参数在哪些寄存器？超过6个怎么办？ | 反汇编：`mov edi` / `push` |
-| ⭐⭐⭐ | 栈帧结构与返回地址 | `rbp`/`rsp` 的关系 | 观察 `leave` / `ret` |
-| ⭐⭐ | 尾调用优化（TCO） | 递归可能不爆栈？ | `-O2` 下 `jmp` 而非 `call` |
-| ⭐⭐ | 内联函数 | 真的"不调用"吗？ | 看有无 `call` 指令 |
-| ⭐ | 默认参数 | 谁填充的？ | 反汇编：调用者压入默认值 |
-| ⭐ | 函数重载与 name mangling | C++ 如何区分同名函数 | `nm` 查看符号名 |
+| ⭐⭐⭐⭐⭐ | 栈帧结构与返回地址 | `rbp`/`rsp`（x86-64）或 `fp`/`sp`（ARM64）的关系 | 观察 `leave`/`ret`（x86-64）或 `ldp`/`ret`（ARM64） |
+| ⭐⭐⭐⭐⭐ | 内联函数 | 真的"不调用"吗？不同优化级别如何影响？ | 对比 `-O0` 和 `-O2` 的汇编，看有无 `call` 指令 |
+| ⭐⭐⭐⭐ | 函数指针与回调 | 函数指针如何存储和调用？与普通函数有何区别？ | 打印函数指针地址，反汇编观察 `call *ptr` |
+| ⭐⭐⭐⭐ | lambda 表达式的底层实现 | lambda 如何转换为函数对象？捕获变量如何存储？ | 查看 lambda 的类型，反汇编观察构造函数 |
+| ⭐⭐⭐ | 函数重载与 name mangling | C++ 如何区分同名函数？不同平台 mangling 规则？ | `nm` 查看符号名，对比 x86-64 和 ARM64 |
+| ⭐⭐ | 可变参数函数 | `va_list` 如何实现？参数如何传递？ | 反汇编观察 `va_start`/`va_arg` |
 
 ### 🛠️ 实践项目 4：栈帧分析器
-**目标**：实现一个简单的栈帧分析工具
+**目标**：实现一个跨平台的栈帧分析工具
 
 ```cpp
 // 实现要求：
-// 1. 打印当前函数的栈帧地址
+// 1. 打印当前函数的栈帧地址（跨平台）
 // 2. 观察递归调用的栈帧变化
-// 3. 验证尾调用优化
-// 4. 分析不同调用约定的影响
+// 3. 验证尾调用优化（对比不同优化级别）
+// 4. 分析不同调用约定的影响（x86-64 vs ARM64）
+// 5. 检测栈溢出（计算栈帧深度）
 
-// 提示：使用 __builtin_frame_address(0) 获取栈帧地址
+// 提示：
+// - 使用 __builtin_frame_address(0) 获取栈帧地址
+// - 使用 __builtin_return_address(0) 获取返回地址
+// - 使用 #ifdef 检测平台：__x86_64__ / __aarch64__
+// - 使用 std::is_same_v 检测指针大小
 ```
+
+### 🌍 跨平台注意事项
+
+#### x86-64 vs ARM64 调用约定对比
+
+| 特性 | x86-64 (System V AMD64 ABI) | ARM64 (AAPCS64) |
+|------|---------------------------|-----------------|
+| **整数参数寄存器** | RDI, RSI, RDX, RCX, R8, R9 (前6个) | X0-X7 (前8个) |
+| **浮点参数寄存器** | XMM0-XMM7 (前8个) | D0-D7 (前8个) |
+| **返回值寄存器** | RAX (整数), XMM0 (浮点) | X0 (整数), D0 (浮点) |
+| **栈帧指针** | RBP (可选) | FP (X29) |
+| **栈指针** | RSP | SP (X31) |
+| **返回地址** | 栈上 | LR (X30) |
+| **多余参数** | 从右向左压栈 | 从右向左压栈 |
+| **调用者保存寄存器** | RBX, RBP, R12-R15 | X19-X28, FP, LR |
+| **被调用者保存寄存器** | RAX, RCX, RDX, RSI, RDI, R8-R11 | X0-X18, V0-V31 |
+
+#### 平台检测宏
+
+```cpp
+// 平台检测
+#if defined(__x86_64__)
+    #define PLATFORM_X86_64
+#elif defined(__aarch64__)
+    #define PLATFORM_ARM64
+#elif defined(__i386__)
+    #define PLATFORM_X86_32
+#endif
+
+// 操作系统检测
+#if defined(__APPLE__)
+    #define OS_MACOS
+#elif defined(__linux__)
+    #define OS_LINUX
+#elif defined(_WIN32)
+    #define OS_WINDOWS
+#endif
+
+// 编译器检测
+#if defined(__clang__)
+    #define COMPILER_CLANG
+#elif defined(__GNUC__)
+    #define COMPILER_GCC
+#elif defined(_MSC_VER)
+    #define COMPILER_MSVC
+#endif
+```
+
+#### 跨平台汇编分析示例
+
+```cpp
+// 获取栈帧地址（跨平台）
+void* get_frame_address() {
+    return __builtin_frame_address(0);
+}
+
+// 获取返回地址（跨平台）
+void* get_return_address() {
+    return __builtin_return_address(0);
+}
+
+// 平台特定的栈帧分析
+void analyze_stack_frame() {
+    void* frame_addr = get_frame_address();
+    void* return_addr = get_return_address();
+
+#ifdef PLATFORM_X86_64
+    printf("x86-64 Stack Frame:\n");
+    printf("  RBP: %p\n", frame_addr);
+    printf("  Return Address: %p\n", return_addr);
+    printf("  RSP: %p\n", (void*)((char*)frame_addr - 16));
+#elif defined(PLATFORM_ARM64)
+    printf("ARM64 Stack Frame:\n");
+    printf("  FP (X29): %p\n", frame_addr);
+    printf("  Return Address (LR): %p\n", return_addr);
+    printf("  SP (X31): %p\n", (void*)((char*)frame_addr - 16));
+#endif
+}
+```
+
+#### 反汇编工具对比
+
+| 工具 | x86-64 | ARM64 | 说明 |
+|------|--------|-------|------|
+| **objdump** | `objdump -d` | `objdump -d` | 通用反汇编工具 |
+| **otool** (macOS) | `otool -tV` | `otool -tV` | macOS 专用工具 |
+| **gdb** | `disas` | `disas` | 调试器反汇编 |
+| **Compiler Explorer** | 支持 | 支持 | 在线工具 (godbolt.org) |
 
 ---
 
@@ -279,6 +372,8 @@
 
 ## 实验通用命令
 
+### 编译相关
+
 ```bash
 # 生成汇编（推荐 -O0 看完整逻辑）
 g++ -g -O0 -fno-elide-constructors test.cpp -S -o test.s
@@ -286,11 +381,27 @@ g++ -g -O0 -fno-elide-constructors test.cpp -S -o test.s
 # 带优化对比
 g++ -g -O2 test.cpp -S -o test_O2.s
 
-# 查看符号表
-nm test | c++filt
+# 开启所有警告
+g++ -Wall -Wextra -pedantic test.cpp
 
-# 查看段布局
-readelf -S test
+# 检测未定义行为（需要安装 UBSan）
+g++ -fsanitize=undefined test.cpp
+
+# 查看类层次结构
+g++ -fdump-class-hierarchy test.cpp
+```
+
+### 反汇编相关（跨平台）
+
+```bash
+# Linux/macOS 通用反汇编
+objdump -d test.o | less
+
+# macOS 专用工具
+otool -tV test.o
+
+# 查看特定函数的反汇编
+objdump -d test.o | grep "function_name:" -A 20
 
 # GDB 汇编级调试
 gdb ./a.out
@@ -298,14 +409,41 @@ gdb ./a.out
 (gdb) stepi
 (gdb) info registers
 
-# 查看类层次结构
-g++ -fdump-class-hierarchy test.cpp
+# 查看符号表
+nm test | c++filt
 
-# 开启所有警告
-g++ -Wall -Wextra -pedantic test.cpp
+# 查看段布局
+readelf -S test  # Linux
+otool -l test    # macOS
+```
 
-# 检测未定义行为（需要安装 UBSan）
-g++ -fsanitize=undefined test.cpp
+### 平台特定命令
+
+```bash
+# x86-64 特定
+# 查看调用约定相关的寄存器使用
+gdb ./a.out
+(gdb) info registers rdi rsi rdx rcx r8 r9
+
+# ARM64 特定
+# 查看调用约定相关的寄存器使用
+gdb ./a.out
+(gdb) info registers x0 x1 x2 x3 x4 x5 x6 x7
+
+# 查看栈帧
+gdb ./a.out
+(gdb) info frame
+(gdb) x/10x $rsp  # x86-64
+(gdb) x/10x $sp   # ARM64
+```
+
+### 在线工具
+
+```bash
+# Compiler Explorer (godbolt.org)
+# 支持多平台、多编译器对比
+# 可以实时查看汇编输出
+# URL: https://godbolt.org/
 ```
 
 ---

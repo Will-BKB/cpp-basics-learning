@@ -53,6 +53,13 @@ section_2/04_initialization
 section_2/03_copy_elision_no_elision
 section_3/01_trivially_copyable
 section_3/02_standard_layout
+section_4/01_stack_frame
+section_4/02_inline_O0
+section_4/02_inline_O2
+section_4/03_function_pointer
+section_4/04_lambda_implementation
+section_4/05_name_mangling
+section_4/06_variadic_functions
 # 其他可执行文件模式
 *_[0-9][0-9]
 

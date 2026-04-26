@@ -55,11 +55,8 @@
 
 | 优先级 | 知识点 | 核心问题 | 验证手段 |
 |--------|--------|----------|----------|
-| ⭐⭐⭐ | trivially copyable | `memcpy` 安全的类型条件 | `std::is_trivially_copyable_v` + 汇编 |
+| ⭐⭐⭐ | trivially copyable | `memcpy` 安全的类型条件 | `std::is_trivially_copyable_v` |
 | ⭐⭐⭐ | standard-layout | `reinterpret_cast` 到首成员的安全保证 | 对比有虚函数/不同访问控制 |
-| ⭐⭐ | 类型别名（`typedef`/`using`） | 是否产生新类型？ | `typeid(T).name()` 对比 |
-| ⭐ | POD（纯旧数据） | C++11 后为何被拆分 | 检查 `trivial` + `standard-layout` |
-| ⭐ | 不完整类型 | 为何只能定义指针/引用？ | `struct T; T obj;` 编译报错 |
 
 ### 🛠️ 实践项目 3：类型特征检查器
 **目标**：实现一个简单的类型特征检查工具
